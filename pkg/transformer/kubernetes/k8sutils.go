@@ -306,6 +306,13 @@ func (k *Kubernetes) CreateService(name string, service kobject.ServiceConfig, o
 
 	// Configure annotations
 	annotations := transformer.ConfigAnnotations(service)
+
+	// Aliyun extension begin
+	for k, v := range service.ServiceAnnotations {
+		annotations[k] = v
+	}
+	// Aliyun extension end
+
 	svc.ObjectMeta.Annotations = annotations
 
 	return svc

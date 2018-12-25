@@ -21,6 +21,7 @@ services:
       aliyun.probe.url: http://container/license.txt
       aliyun.probe.initial_delay_seconds: "10"
       aliyun.routing.port_80: wordpress;http://www.example.com;https://www.nice.com
+      #aliyun.lb.port_80: http://slb_example_name:8080
       aliyun.scale: "3"
   db:
     image: mysql:5.6

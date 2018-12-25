@@ -115,7 +115,9 @@ type ServiceConfig struct {
 	ConfigsMetaData map[string]dockerCliTypes.ConfigObjConfig `compose:""`
 
 	// Aliyun Extensions
-	External External `compose:"external"`
+	External           External          `compose:"external"`
+	ServiceAnnotations map[string]string `compose:""`
+	ExposeServicePath  string            `compose:"kompose.service.path"`
 }
 
 // HealthCheck the healthcheck configuration for a service
