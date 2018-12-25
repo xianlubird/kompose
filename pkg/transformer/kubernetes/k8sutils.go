@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/kubernetes/pkg/util/intstr"
 	"os"
 	"path"
 	"path/filepath"
@@ -402,6 +403,20 @@ func (k *Kubernetes) UpdateKubernetesObjects(name string, service kobject.Servic
 						Command: service.HealthChecks.Test,
 					},
 				}
+				// Aliyun extensions begin
+			} else if service.HealthChecks.TCPSocket != nil {
+				probe.Handler = api.Handler{
+					TCPSocket: &api.TCPSocketAction{
+						Port: intstr.FromInt(service.HealthChecks.TCPSocket.Port),
+					},
+				}
+			} else if service.HealthChecks.HTTPGet != nil {
+				probe.Handler = api.Handler{
+					HTTPGet: &api.HTTPGetAction{
+						Path: service.HealthChecks.HTTPGet.Path,
+						Port: intstr.FromInt(service.HealthChecks.HTTPGet.Port),
+					},
+				} // Aliyun extensions end
 			} else {
 				return errors.New("Health check must contain a command")
 			}
