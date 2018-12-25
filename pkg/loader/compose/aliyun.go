@@ -8,6 +8,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"net"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -40,6 +41,9 @@ const LABEL_SERVICE_PROBE_URL = EXT_LABEL_PREFIX + ".probe.url"
 const LABEL_SERVICE_PROBE_CMD = EXT_LABEL_PREFIX + ".probe.cmd"
 const LABEL_SERVICE_PROBE_INIT_DELAY_SECONDS = EXT_LABEL_PREFIX + ".probe.initial_delay_seconds"
 const LABEL_SERVICE_PROBE_TIMEOUT_SECONDS = EXT_LABEL_PREFIX + ".probe.timeout_seconds"
+
+// gpu labels
+const LABEL_GPU = EXT_LABEL_PREFIX + ".gpu"
 
 // sls labels
 const LABEL_SLS_PREFIX = EXT_LABEL_PREFIX + ".log_store_"
@@ -104,21 +108,38 @@ func handleAliyunExt(svcName string, service *kobject.ServiceConfig) {
 			service.HealthChecks.Timeout, err = parseProbeSeconds(value)
 		case LABEL_SERVICE_PROBE_INIT_DELAY_SECONDS:
 			service.HealthChecks.StartPeriod, err = parseProbeSeconds(value)
-
+		case LABEL_GPU:
+			service.GPUs, err = strconv.Atoi(value)
 		default:
 			if strings.HasPrefix(key, LABEL_SERVICE_LB_PORT_PREFIX) {
-				//log.Debugf("for LB key:%s, value:%s", key, value)
-				//lbs, err3 := ParseLbs(key, value)
 				service.ServiceType = string(api.ServiceTypeLoadBalancer)
 				service.ServiceAnnotations, err = parseLbs(key, value)
 			}
 
 			if strings.HasPrefix(key, LABEL_SERVICE_ROUTING_PORT_PREFIX) {
 				var routings []Routing
-				routings, err = ParseRouting(key, value)
+				routings, err = parseRouting(key, value)
 				if err == nil && len(routings) > 0 {
 					service.ExposeService = routings[0].VirtualHost
 					service.ExposeServicePath = routings[0].ContextRoot
+				}
+			}
+
+			if strings.HasPrefix(key, LABEL_SLS_PREFIX) {
+				var logConfig *LogConfig
+				logConfig, err = parseLogConfig(key, value)
+				if err == nil {
+					service.Environment = append(service.Environment, kobject.EnvVar{
+						Name:  "aliyun_logs_" + logConfig.Name,
+						Value: value,
+					})
+					if logConfig.Type == "file" {
+						// Add mount point
+						if service.LogVolumes == nil {
+							service.LogVolumes = make(map[string]string)
+						}
+						service.LogVolumes[logConfig.Name] = logConfig.ContainerPath
+					}
 				}
 			}
 		}
@@ -335,7 +356,7 @@ func validSlbName(slbName string) error {
 	}
 }
 
-func ParseRouting(key, value string) ([]Routing, error) {
+func parseRouting(key, value string) ([]Routing, error) {
 	urls := strings.Split(value, ";")
 	port, err := getRoutingContainerPort(key)
 	if err != nil {
@@ -513,4 +534,53 @@ func getNatContainerPort(key string) (port int, err error) {
 		return 0, fmt.Errorf("invalid loadbalancer port number: %s", key)
 	}
 	return port, nil
+}
+
+type LogConfig struct {
+	Name          string `json:"name,omitempty"`
+	ContainerPath string `json:"containerPath,omitempty"`
+	FilePattern   string `json:"filePattern,omitempty"`
+	Type          string `json:"type,omitempty"`
+	TTL           string `json:"ttl,omitempty"`
+}
+
+//
+//type SLSInfo struct {
+//	Project    string `json:"project,omitempty"`
+//	Integrated bool   `json:"integrated,omitempty"`
+//}
+
+func parseLogConfig(key, path string) (*LogConfig, error) {
+
+	var (
+		containerPath string
+		filePattern   string
+		typ           string
+	)
+	path = strings.TrimSpace(path)
+	name := key[len(LABEL_SLS_PREFIX):]
+	if len(name) == 0 {
+		return nil, fmt.Errorf("invalid SLS label key: %s", key)
+	}
+
+	if path != "stdout" && !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("invalid log path: %s, must be stdout or start with /", path)
+	}
+
+	if path == "stdout" {
+		filePattern = "stdout"
+		containerPath = ""
+		typ = "stdout"
+	} else {
+		filePattern = filepath.Base(path)
+		containerPath = filepath.Dir(path)
+		typ = "file"
+	}
+
+	return &LogConfig{
+		Name:          name,
+		ContainerPath: containerPath,
+		FilePattern:   filePattern,
+		Type:          typ,
+	}, nil
 }

@@ -367,6 +367,13 @@ func (k *Kubernetes) UpdateKubernetesObjects(name string, service kobject.Servic
 
 	}
 
+	// Aliyun extension begin
+	logVolumesMount, logVolumes := k.ConfigLogVolumes(name, service)
+	volumes = append(volumes, logVolumes...)
+	volumesMount = append(volumesMount, logVolumesMount...)
+
+	// Aliyun extension end
+
 	if pvc != nil {
 		// Looping on the slice pvc instead of `*objects = append(*objects, pvc...)`
 		// because the type of objects and pvc is different, but when doing append
@@ -448,7 +455,7 @@ func (k *Kubernetes) UpdateKubernetesObjects(name string, service kobject.Servic
 		}
 
 		// Configure the resource limits
-		if service.MemLimit != 0 || service.CPULimit != 0 {
+		if service.MemLimit != 0 || service.CPULimit != 0 || service.GPUs != 0 {
 			resourceLimit := api.ResourceList{}
 
 			if service.MemLimit != 0 {
@@ -457,6 +464,10 @@ func (k *Kubernetes) UpdateKubernetesObjects(name string, service kobject.Servic
 
 			if service.CPULimit != 0 {
 				resourceLimit[api.ResourceCPU] = *resource.NewMilliQuantity(service.CPULimit, resource.DecimalSI)
+			}
+
+			if service.GPUs != 0 {
+				resourceLimit["nvidia.com/gpu"] = *resource.NewQuantity(int64(service.GPUs), resource.DecimalSI)
 			}
 
 			template.Spec.Containers[0].Resources.Limits = resourceLimit

@@ -118,6 +118,8 @@ type ServiceConfig struct {
 	External           External          `compose:"external"`
 	ServiceAnnotations map[string]string `compose:""`
 	ExposeServicePath  string            `compose:"kompose.service.path"`
+	GPUs               int               `compose:""`
+	LogVolumes         map[string]string `compose:""`
 }
 
 // HealthCheck the healthcheck configuration for a service

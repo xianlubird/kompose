@@ -29,4 +29,6 @@ services:
       MYSQL_ROOT_PASSWORD: password
     restart: always
     labels:
-      aliyun.log_store_mysql: stdout
+      aliyun.gpu: "1"
+      aliyun.log_store_mysql-stdout: stdout
+      aliyun.log_store_mysql-varlog: /var/log/*.log
